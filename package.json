@@ -1,0 +1,11 @@
+{
+  "name": "@eater/asbest",
+  "version": "1.0.0",
+  "description": "In-memory workflow with progress reporting",
+  "main": "index.js",
+  "author": "eater <=@eater.me>",
+  "license": "MIT",
+  "devDependencies": {
+    "flow-remove-types": "^1.2.3"
+  }
+}
