@@ -6,6 +6,16 @@
   "author": "eater <=@eater.me>",
   "license": "MIT",
   "devDependencies": {
-    "flow-remove-types": "^1.2.3"
+    "flow-remove-types": "^1.2.3",
+    "jest": "^23.6.0"
+  },
+  "scripts": {
+    "build": "node node_modules/.bin/flow-remove-types --out-dir lib/ src/",
+    "test": "yarn build && jest"
+  },
+  "jest": {
+    "testMatch": [
+      "**/tests/**/*.js"
+    ]
   }
 }
