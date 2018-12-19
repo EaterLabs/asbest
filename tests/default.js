@@ -17,10 +17,10 @@ let list = build(
       },
       {
         description: 'o:',
-        action: async () => new Promise((res) => {
+        action: () => new Promise((res) => {
           setTimeout(() => {
             res(Date.now())
-          });
+          }, 400);
         })
       },
       {
@@ -31,7 +31,7 @@ let list = build(
     parallel: 2,
     description: 'Hey!',
     collect: (tasks, input) => {
-      input.parallel = tasks.map(a => a.status);
+      input.parallel = tasks.map(a => a.result);
       return input;
     }
   })
@@ -39,7 +39,6 @@ let list = build(
 
 it('should return 2', async () => {
   let x = await list.execute();
-  console.log(x.parallel);
   let y = [...x.parallel].sort()
   expect(y).not.toEqual(x.parallel);
   expect(x.last).toBe(2);

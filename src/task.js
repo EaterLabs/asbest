@@ -101,22 +101,28 @@ class TaskWithQueue extends Task {
   }
 
   prependTask(task: Task) {
-    if (this.allowTaskAddition()) {
+    if (!this.allowTaskAddition()) {
       throw new Error("Can't add tasks after list is finished or a task failed");
     }
 
     this.tasks.splice(this.taskIndex, 0, task);
     this.totalTicks++;
+    
+    this.onTaskListMutation();
   }
 
   addTask(task: Task) {
-    if (this.allowTaskAddition()) {
+    if (!this.allowTaskAddition()) {
       throw new Error("Can't add tasks after list is finished or a task failed");
     }
 
     this.tasks.push(task);
     this.totalTicks++;
+
+    this.onTaskListMutation();
   }
+
+  onTaskListMutation() {}
 }
 
 type TaskController = {
@@ -136,6 +142,7 @@ class TaskList extends TaskWithQueue {
   empty: boolean;
   isQueue: boolean;
   controller: TaskController;
+  wakeup: ?()=> void;
 
   constructor({tasks = [], description = "no description given", controller, isQueue = false}: TaskListConstructor) {
     super({
@@ -147,13 +154,33 @@ class TaskList extends TaskWithQueue {
     this.wait = false;
     this.empty = false;
     this.isQueue = isQueue;
+    this.wakeup = undefined;
+  }
+
+  async checkTasks() {
+    if (this.taskIndex < this.tasks.length) {
+      return true;
+    }
+
+    // Emit empty event then stay idle in case we've been ordered to wait
+    if (this.wait) {
+      let idlePromise = this.stayIdle();
+      this.empty = true;
+      this.emit('empty', this);
+      await idlePromise;
+    } else {
+      this.empty = true;
+      this.emit('empty', this);
+    }
+
+    return this.taskIndex < this.tasks.length;
   }
 
   async runTasks(input: any) {
     let state = input || {};
     let last = false;
 
-    while (this.taskIndex < this.tasks.length) {
+    while (await this.checkTasks()) {
       this.empty = false;
       let task = this.tasks[this.taskIndex];
       task.on('error', (e, c) => this.emit('child/error', e, c));
@@ -162,13 +189,6 @@ class TaskList extends TaskWithQueue {
       task.on('done', (c) => this.emit('child/done', c));
       last = await task.execute(this.isQueue ? input : {state, last, controller: this.controller});
       this.progress(this.taskIndex++);
-
-      if (this.tasks.length <= this.taskIndex) {
-        // Emit empty event then stay idle in case we've been ordered to wait
-        this.emit('empty', this);
-        this.empty = true;
-        await this.stayIdle();
-      }
     }
 
     return last;
@@ -180,18 +200,18 @@ class TaskList extends TaskWithQueue {
 
   resume() {
     this.wait = false;
+    this.wakeup && this.wakeup();
+  }
+
+  onTaskListMutation() {
+    this.wakeup && this.wakeup();
   }
 
   async stayIdle() {
-    const immediate = () => new Promise((res) => {
-      setImmediate(() => {
-        res();
-      })
+    await new Promise((res) => {
+      this.wakeup = res;
     });
-
-    do {
-      await immediate();
-    } while (this.wait)
+    this.wakeup = undefined;
   }
 }
 
@@ -229,7 +249,6 @@ class TaskBucket extends TaskWithQueue {
     for (let taskList of this.taskLists) {
       if (!taskList.empty) return;
     }
-
 
     for (let taskList of this.taskLists) {
       taskList.resume();
